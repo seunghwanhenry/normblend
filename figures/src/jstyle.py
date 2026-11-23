@@ -15,23 +15,31 @@ COND = {"MCAR 0.3": "MCAR 30%", "MCAR 0.7": "MCAR 70%", "MNAR 0.3": "MNAR 30%", 
 CONDS = ["MCAR 0.3", "MCAR 0.7", "MNAR 0.3", "GAP 0.4"]
 DSN = {"Siemens": "Siemens", "ECG200": "ECG200", "Motor": "Motors", "Hydraulic": "Hydraulic rig", "CMAPSS": "C-MAPSS-SC", "CMAPSS_M": "C-MAPSS-MC", "MetroPT": "MetroPT-3", "SKAB": "SKAB"}
 
+SPINE = "#9b9b9b"
+TINTS = {"global": "#fdf0e9", "seq": "#e6f6ef", "dual": "#e9f1fb", "neutral": "#f4f4f2"}
+DARK = {"global": "#b8461a", "seq": "#0f7a54", "dual": "#1d5aa6"}
+
 def setup():
     plt.rcParams.update({
-        "font.family": "Liberation Sans", "font.size": 8, "axes.labelsize": 8.5,
-        "xtick.labelsize": 7.5, "ytick.labelsize": 7.5, "legend.fontsize": 7.5,
-        "axes.edgecolor": INK2, "axes.linewidth": 0.6, "axes.labelcolor": INK,
+        "font.family": "Liberation Sans", "font.size": 8, "axes.labelsize": 8.2,
+        "xtick.labelsize": 7.3, "ytick.labelsize": 7.3, "legend.fontsize": 7.2,
+        "axes.edgecolor": SPINE, "axes.linewidth": 0.6, "axes.labelcolor": INK,
         "xtick.color": INK2, "ytick.color": INK2, "xtick.major.width": 0.6, "ytick.major.width": 0.6,
         "xtick.minor.width": 0.4, "ytick.minor.width": 0.4,
-        "xtick.major.size": 3, "ytick.major.size": 3, "xtick.minor.size": 1.8, "ytick.minor.size": 1.8,
+        "xtick.major.size": 2.6, "ytick.major.size": 2.6, "xtick.minor.size": 1.5, "ytick.minor.size": 1.5,
         "axes.spines.top": False, "axes.spines.right": False, "legend.frameon": False,
         "pdf.fonttype": 42, "ps.fonttype": 42, "svg.fonttype": "none",
-        "savefig.dpi": 600, "figure.dpi": 150, "lines.linewidth": 1.0,
+        "savefig.dpi": 600, "figure.dpi": 150, "lines.linewidth": 1.0, "lines.solid_capstyle": "round",
         "mathtext.fontset": "custom", "mathtext.rm": "Liberation Sans", "mathtext.it": "Liberation Sans:italic",
         "mathtext.bf": "Liberation Sans:bold",
     })
 
+def pill(ax, x, y, s, fc="#f1f1ef", ec="none", color=None, size=6.6, transform=None, ha="center", va="center", weight="normal", pad=0.28):
+    return ax.text(x, y, s, ha=ha, va=va, fontsize=size, color=color or INK, weight=weight, zorder=6, clip_on=False,
+                   transform=transform or ax.transData, bbox=dict(boxstyle=f"round,pad={pad},rounding_size=0.8", fc=fc, ec=ec, lw=0.5))
+
 def grid(ax, axis="y"):
-    ax.grid(True, axis=axis, color=GRID, lw=0.5, zorder=0)
+    ax.grid(True, axis=axis, color="#e3e3e0", lw=0.5, ls=(0, (2.5, 2)), zorder=0)
     ax.set_axisbelow(True)
 
 def save(fig, name):
