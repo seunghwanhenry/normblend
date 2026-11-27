@@ -1,4 +1,4 @@
-# Figure 5: missing-rate sweep (MCAR 10-90%), RMSE of global, per-sequence and NormBlend (means over seeds)
+# Figure 6: missing-rate sweep (MCAR 10-90%), RMSE of global, per-sequence and NormBlend (means over seeds)
 from jstyle import *
 import json, numpy as np
 from matplotlib.lines import Line2D
@@ -27,4 +27,4 @@ for r, ds in enumerate(DS):
         if c == 0: ax.set_ylabel("RMSE")
 h = [Line2D([], [], color=COL[v], marker=MK[v], ms=4, mec="white", mew=0.5, lw=1.5 if v == "dual" else 1.0, label=LBL[v]) for v in ("global", "seq", "dual")]
 fig.legend(handles=h, loc="upper center", ncol=3, bbox_to_anchor=(0.5, 1.0), fontsize=7.0, frameon=False, handlelength=1.8, columnspacing=1.4)
-save(fig, "fig_5")
+save(fig, "fig_6")

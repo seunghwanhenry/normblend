@@ -1,4 +1,4 @@
-"""Numbers and Tables 2-5 of the paper from the result tables of Steps 8 and 9.
+"""Numbers and Tables 2-5 of the paper from the result tables of Steps 8, 9 and 10.
 Run from the repository root:  python paper_tables.py
 Writes paper_outputs/summary.json (statistics quoted in the text) and paper_outputs/tables.md (Tables 2-5)."""
 import json, os
@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr, wilcoxon
 
-S8, S9, OUT = "step8_outputs", "step9_outputs", "paper_outputs"
+S8, S9, S10, OUT = "step8_outputs", "step9_outputs", "step10_outputs", "paper_outputs"
 os.makedirs(OUT, exist_ok=True)
 gm = lambda x: float(np.exp(np.log(np.asarray(x, float)).mean()))
 MAIN = ["MCAR 0.3", "MCAR 0.7", "MNAR 0.3", "GAP 0.4"]
@@ -81,6 +81,85 @@ e6["nb_2seed_below_ens_better"] = int((ce.nb_2seed < ce.ens_better).sum())
 e6["global_better"] = int((ce["global"] < ce.seq).sum())
 out["e6"] = e6
 ce.to_csv(os.path.join(OUT, "e6_settings.csv"))
+
+# ---------------------------------------------------------------- Step 10: scales, bootstrap, per-variable selection, case, shift magnitude
+U = rd(os.path.join(S10, "step10_unit_errors.csv.gz"))
+NB_BOOT = 2000
+
+
+def settings(Up, scale):
+    g = Up.groupby(["dataset", "cond", "seed", "model", "variant"])[["n", f"sse_{scale}"]].sum()
+    return np.sqrt(g[f"sse_{scale}"] / g.n).groupby(["dataset", "cond", "model", "variant"]).mean().unstack()
+
+
+def boot_rmse(Up, scale, seed=20261126):
+    """cluster bootstrap over test units within each seed, the same draw for all settings of a dataset;
+    returns {(dataset, cond, model, variant): array of setting RMSEs, draw 0 = estimate}"""
+    rng = np.random.default_rng(seed); blocks = {}
+    for (ds, sd), q in Up.groupby(["dataset", "seed"]):
+        units = np.sort(q.unit.unique()); ui = {u: i for i, u in enumerate(units)}
+        keys = sorted(set(zip(q.cond, q.model, q.variant))); ki = {k: i for i, k in enumerate(keys)}
+        SSE = np.zeros((len(keys), len(units))); N = np.zeros_like(SSE)
+        r_ = [ki[k] for k in zip(q.cond, q.model, q.variant)]; c_ = q.unit.map(ui).to_numpy()
+        SSE[r_, c_] = q[f"sse_{scale}"].to_numpy(); N[r_, c_] = q.n.to_numpy()
+        Wt = np.vstack([np.ones(len(units)), rng.multinomial(len(units), np.full(len(units), 1 / len(units)), size=NB_BOOT)])
+        blocks[(ds, sd)] = (keys, np.sqrt((Wt @ SSE.T) / (Wt @ N.T)))
+    rm = {}
+    for ds in sorted({k[0] for k in blocks}):
+        sds = [k for k in blocks if k[0] == ds]; keys = blocks[sds[0]][0]
+        M = np.mean([blocks[k][1] for k in sds], axis=0)
+        for j, k in enumerate(keys): rm[(ds,) + k] = M[:, j]
+    return rm
+
+
+def gm_ratio(rm, num, den, models=BB, dss=None):
+    best = lambda ds, c, m: np.minimum(rm[(ds, c, m, "global")], rm[(ds, c, m, "seq")])
+    get = lambda v, ds, c, m: best(ds, c, m) if v == "orc" else rm[(ds, c, m, v)]
+    logs = [np.log(get(num, ds, c, m) / get(den, ds, c, m)) for (ds, c, m, v) in rm
+            if v == "normblend" and m in models and c in MAIN and (dss is None or ds in dss)]
+    x = np.exp(np.mean(logs, axis=0))
+    return dict(est=float(x[0]), lo=float(np.percentile(x[1:], 2.5)), hi=float(np.percentile(x[1:], 97.5)))
+
+
+s10 = {}
+main10 = U[(U.part == "main") & U.cond.isin(MAIN) & U.model.isin(BB)]
+for scale in ("rep", "eq2"):
+    P10 = settings(main10, scale); orc10 = P10[["global", "seq"]].min(axis=1); r10 = P10.normblend / orc10
+    s10[scale] = dict(below=int((r10 < 1).sum()), gm_orc=gm(r10), worst=float(r10.max()), gm_glob=gm(P10.normblend / P10["global"]),
+                      gm_seq=gm(P10.normblend / P10.seq), valsel_gm=gm(P10.normblend / P10.valsel), glob_better=int((P10["global"] < P10.seq).sum()),
+                      nb_vs_selvar=gm(P10.normblend / P10.sel_var), nb_below_selvar=int((P10.normblend < P10.sel_var - 1e-12).sum()),
+                      below_by_ds=(r10 < 1).groupby(level="dataset").sum().astype(int).to_dict())
+    rm = boot_rmse(main10[main10.variant.isin(["global", "seq", "normblend", "valsel", "sel_var"])], scale)
+    s10[scale]["boot"] = {f"nb/{d}" + ("" if ds is None else f"|{ds}"): gm_ratio(rm, "normblend", d, dss=None if ds is None else [ds])
+                          for d in ("orc", "global", "seq", "valsel", "sel_var") for ds in [None] + [x for x, _ in DS]}
+    if scale == "rep": P10r = P10
+    else: P10z = P10
+s10["better_flip"] = [list(i) for i, f in ((P10r["global"] < P10r.seq) != (P10z["global"] < P10z.seq)).items() if f]
+strat10 = ["normblend", "nb_noguard", "sel_var", "nb_pooled", "nb_equal", "valsel", "global_guard", "global", "seq"]
+orc10 = P10r[["global", "seq"]].min(axis=1); rk10 = P10r[strat10].rank(axis=1).mean()
+gx = U[U.part == "shift"].groupby(["cond", "seed", "model", "variant"])[["n", "sse_rep"]].sum()
+xs10 = np.sqrt(gx.sse_rep / gx.n).groupby(["model", "variant"]).mean().unstack().loc[BB]
+s10["ablation"] = {v: dict(gm=gm(P10r[v] / orc10), worst=float((P10r[v] / orc10).max()), below=int((P10r[v] < orc10).sum()),
+                           rank=float(rk10[v]), cross=float(xs10[v].mean())) for v in strat10}
+e6u = U[(U.part == "E6") & U.variant.isin(["global", "seq", "normblend", "ens_global", "ens_valsel"])]
+rm6 = boot_rmse(e6u, "rep"); E6M = ["SAITS", "TimesNet", "ImputeFormer", "Transformer"]
+s10["e6_boot"] = {f"nb/{d}": gm_ratio(rm6, "normblend", d, models=E6M) for d in ("ens_global", "ens_valsel", "orc")}
+SIG = ["TP2", "TP3", "H1", "DV_pressure", "Reservoirs", "Oil_temperature", "Motor_current"]
+F = rd(os.path.join(S10, "step10_metropt_failure.csv.gz")); F = F[F.variant.isin(["global", "seq", "normblend"])]
+gf = F.groupby(["var", "failure", "variant"])[["n", "sum_e", "sum_e2"]].sum()
+s10["case_pooled"] = {f"{SIG[v]}|{'leak' if f else 'normal'}|{k}": dict(rmse=float(np.sqrt(r.sum_e2 / r.n)), bias=float(r.sum_e / r.n))
+                      for (v, f, k), r in gf.iterrows()}
+gm_ = F.groupby(["var", "model", "failure", "variant"])[["n", "sum_e2"]].sum(); gm_ = np.sqrt(gm_.sum_e2 / gm_.n).unstack("variant")
+s10["case_lowest"] = {("leak" if f else "normal"): gm_.xs(f, level="failure").idxmin(axis=1).value_counts().to_dict() for f in (0, 1)}
+if os.path.exists(os.path.join(S10, "step10_shift_runs.csv")):
+    K = rd(os.path.join(S10, "step10_shift_runs.csv"))
+    K0 = K[K.scenario == "none"]; K = pd.concat([K[K.scenario != "none"]] + [K0.assign(scenario=sc) for sc in ("one", "all")])
+    cell = K.groupby(["dataset", "scenario", "k", "cond", "model", "variant"]).rmse.mean().unstack()
+    rat = np.log(cell.div(cell.seq, axis=0)).groupby(level=["dataset", "scenario", "k"]).mean().apply(np.exp)
+    s10["shift_ratio_to_seq"] = {f"{d}|{sc}|{k:g}": r.round(4).to_dict() for (d, sc, k), r in rat.iterrows()}
+    gcols = [c for c in K.columns if c.startswith("guard")]
+    s10["shift_guard"] = {f"{d}|{sc}|{k:g}": r.round(4).to_dict() for (d, sc, k), r in K.groupby(["dataset", "scenario", "k"])[gcols].mean().iterrows()}
+out["step10"] = s10
 json.dump(out, open(os.path.join(OUT, "summary.json"), "w"), indent=1, default=float)
 
 # ---------------------------------------------------------------- tables
@@ -131,16 +210,20 @@ def table4():
         rows.append(f"| {lab} | {tr} | {nd} | {B(f'{v[0]:.3f}', v[0] == best[0])} | {B(f'{v[1]:.3f}', v[1] == best[1])} | {nbl} | {B(f'{v[2]:.3f}', v[2] == best[2])} |")
     return "\n".join(rows)
 def table5():
-    A, X = out["ablation"], out["cross_ablation"]
-    names = [("normblend", "NormBlend (per-variable weights and guard)"), ("nb_noguard", "without the guard"), ("nb_pooled", "one pooled weight"),
-             ("nb_equal", "equal weights (0.5)"), ("valsel", "validation selection"), ("global", "global standardization"), ("seq", "per-sequence normalization")]
-    vals = {k: [round(A[k]["gm"], 3), round(A[k]["worst"], 3), A[k]["below"], round(A[k]["rank"], 2), round(X[k], 3)] for k, _ in names}
+    A = out["step10"]["ablation"]
+    names = [("normblend", "NormBlend", "per variable, in [0, 1]", "yes"), ("nb_noguard", "without the guard", "per variable, in [0, 1]", "no"),
+             ("sel_var", "per-variable selection", "per variable, 0 or 1", "yes"), ("nb_pooled", "one pooled weight", "one, in [0, 1]", "yes"),
+             ("nb_equal", "equal weights", "0.5", "no"), ("valsel", "validation selection", "one, 0 or 1", "no"),
+             ("global_guard", "global standardization with the guard", "1", "yes"), ("global", "global standardization", "1", "no"),
+             ("seq", "per-sequence normalization", "0", "no")]
+    vals = {k: [round(A[k]["gm"], 3), round(A[k]["worst"], 3), A[k]["below"], round(A[k]["rank"], 2), round(A[k]["cross"], 3)] for k, *_ in names}
     best = [min(v[0] for v in vals.values()), min(v[1] for v in vals.values()), max(v[2] for v in vals.values()),
             min(v[3] for v in vals.values()), min(v[4] for v in vals.values())]
-    rows = ["| Variant | Ratio, geometric mean | Ratio, worst | Below the better normalization | Mean rank | SC → MC |", "|---|---|---|---|---|---|"]
-    for k, lab in names:
+    rows = ["| Variant | Weights | Guard | Ratio, geometric mean | Ratio, worst | Below the better normalization | Mean rank | SC → MC |",
+            "|---|---|---|---|---|---|---|---|"]
+    for k, lab, w, gd in names:
         v = vals[k]; f = [f"{v[0]:.3f}", f"{v[1]:.3f}", str(v[2]), f"{v[3]:.2f}", f"{v[4]:.3f}"]
-        rows.append(f"| {lab} | " + " | ".join(B(f[i], v[i] == best[i]) for i in range(5)) + " |")
+        rows.append(f"| {lab} | {w} | {gd} | " + " | ".join(B(f[i], v[i] == best[i]) for i in range(5)) + " |")
     return "\n".join(rows)
 md = "\n\n".join(f"Table {n}\n\n{f()}" for n, f in [(2, table2), (3, table3), (4, table4), (5, table5)])
 open(os.path.join(OUT, "tables.md"), "w", encoding="utf-8").write(md + "\n")

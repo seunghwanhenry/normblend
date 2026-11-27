@@ -1,0 +1,18 @@
+# downloaded data, caches and per-run prediction files (recreated by the scripts)
+data/
+step5_outputs/
+step7_outputs/
+step*_outputs/results/
+step*_outputs/cache/
+step*_outputs/errors/
+step*_outputs/smoke/
+step*_outputs/check/
+paper_outputs/
+figures/*.pdf
+figures/*.png
+figures/*.tif
+figures/preview/
+__pycache__/
+*.pyc
+*.npz
+!step10_outputs/step10_metropt_windows.npz

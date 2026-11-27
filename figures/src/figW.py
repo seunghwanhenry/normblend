@@ -1,4 +1,4 @@
-# Figure 4: NormBlend weights a_d on the globally standardized imputation, per variable and imputer, with imputer means
+# Figure 5: NormBlend weights a_d on the globally standardized imputation, per variable and imputer, with imputer means
 from jstyle import *
 import json, numpy as np
 from matplotlib.colors import LinearSegmentedColormap
@@ -46,4 +46,4 @@ cax.yaxis.tick_right(); cax.set_yticks([0, 0.5, 1]); cax.set_yticklabels(["0  pe
 cax.tick_params(length=1.5, pad=1.5)
 for sp in cax.spines.values(): sp.set_visible(False)
 fig.text((cx + 0.08) / W, (b0 + ph + 0.18) / H, r"$a_d$", ha="center", va="bottom", fontsize=7.0, color=INK)
-save(fig, "fig_4")
+save(fig, "fig_5")

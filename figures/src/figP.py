@@ -1,4 +1,4 @@
-# Figure 3: Proposition 1 in practice - calibration-predicted gain of blending against the test gain, per variable
+# Figure 4: Proposition 1 on the benchmark data
 from jstyle import *
 import json, numpy as np
 from scipy.stats import spearmanr
@@ -55,4 +55,4 @@ def draw_b(ax, solo):
     top.spines["bottom"].set_visible(True); right.spines["left"].set_visible(True)
     top.tick_params(axis="x", labelbottom=False); right.tick_params(axis="y", labelleft=False)
 
-panels("fig_3", [draw_a, draw_b], [8.2, 7.4], 6.6, [(1.35, 0.2, 1.45, 0.25), (1.35, 0.2, 1.25, 0.2)], gap=0.4)
+panels("fig_4", [draw_a, draw_b], [8.2, 7.4], 6.6, [(1.35, 0.2, 1.45, 0.25), (1.35, 0.2, 1.25, 0.2)], gap=0.4)

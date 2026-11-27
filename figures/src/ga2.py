@@ -1,4 +1,4 @@
-# Graphical abstract: the better normalization reverses; NormBlend; result over 96 settings
+# Graphical abstract: the better normalization reverses; blend weights per variable; result over 96 settings
 from jstyle import *
 import json, numpy as np
 from scipy.stats import gaussian_kde
@@ -37,55 +37,41 @@ ax.set_ylabel("Per-sequence / global RMSE")
 ax.text(-0.45, 8.6, "global better", ha="left", va="center", fontsize=9.5, color=DARK["global"], weight="bold")
 ax.text(-0.45, 0.18, "per-sequence better", ha="left", va="center", fontsize=9.5, color=DARK["seq"], weight="bold")
 
-# middle: method sketch
-head(8.0, "NormBlend", "two views, one blend per variable", color=DARK["dual"])
-m = fig.add_axes([7.7 / W, 0.15 / H, 7.0 / W, 6.5 / H]); m.set_xlim(0, 70); m.set_ylim(-2, 63); m.axis("off")
-def rb(x, y, w, h, fc, ec, lines, fs=9.2):
-    m.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0,rounding_size=2.2", fc=fc, ec=ec, lw=1.0, zorder=2))
-    for k, s_ in enumerate(lines):
-        m.text(x + w / 2, y + h / 2 + (len(lines) - 1) * 1.9 - k * 3.8, s_, ha="center", va="center", fontsize=fs,
-               color=INK, weight="bold" if k == 0 else "normal", zorder=3)
-def ar(p, q, col=INK2, lw=1.0):
-    m.add_patch(FancyArrowPatch(p, q, arrowstyle="-|>", mutation_scale=9, color=col, lw=lw, shrinkA=0, shrinkB=0, zorder=1))
-rng = np.random.default_rng(4); miss = rng.random((4, 8)) < 0.3; miss[1, 3:6] = True; miss[3, 5:8] = True; miss[0, 0] = False
-def win(x0, yc, cell, gap, fill=None):
-    h = 4 * (cell + gap) - gap
-    for d in range(4):
-        for t in range(8):
-            fc, ec = ((fill, fill) if fill else ("white", "#a9a9a9")) if miss[d, t] else ("#c4c4c1", "#c4c4c1")
-            m.add_patch(FancyBboxPatch((x0 + t * (cell + gap), yc - h / 2 + (3 - d) * (cell + gap)), cell, cell,
-                                       boxstyle=f"round,pad=0,rounding_size={cell * 0.2}", fc=fc, ec=ec, lw=0.5, zorder=3))
-    return 8 * (cell + gap) - gap
-ww = win(0, 33, 1.4, 0.35)
-rb(21, 45, 20, 12, TINTS["global"], GLOB, ["Imputer", "G view"])
-rb(21, 9, 20, 12, TINTS["seq"], SEQ, ["Imputer", "S view"])
-ar((ww + 0.8, 34.5), (21, 50.5)); ar((ww + 0.8, 31.5), (21, 15.5))
-gx, gy, r = 51.5, 33, 4.0
-m.add_patch(Polygon([(gx - r, gy), (gx, gy + r), (gx + r, gy), (gx, gy - r)], closed=True, fc="white", ec=INK2, lw=1.0, zorder=3))
-m.text(gx, gy, r"$\kappa$", ha="center", va="center", fontsize=9.5, zorder=4)
-ar((41, 51), (gx - 1.8, gy + 2.4), col=GLOB, lw=1.3); ar((41, 15), (gx - 1.8, gy - 2.4), col=SEQ, lw=1.3)
-ar((gx + r, gy), (gx + r + 2.8, gy), col=DUAL, lw=1.4)
-win(gx + r + 3.2, 33, 1.12, 0.28, fill=DUAL)
-m.text(gx + 6.5, 26.3, "range guard", ha="center", va="center", fontsize=8.3, color=MUTED)
-m.text(35, 4.2, r"$\hat x_d = a_d\,\hat x^{\mathrm{G}}_d + (1-a_d)\,\hat x^{\mathrm{S}}_d$", ha="center", va="center", fontsize=11, color=INK)
-m.text(35, -1.2, r"$a_d$: per-variable weight from held-out errors", ha="center", va="center", fontsize=8.3, color=MUTED)
+# middle: per-variable weights (MetroPT-3)
+from matplotlib.colors import LinearSegmentedColormap
+head(8.0, "Blend weights per variable", "learned on held-out units, MetroPT-3")
+cmap = LinearSegmentedColormap.from_list("ws", [SEQ, "#f6f6f4", GLOB])
+BB = ["KNN", "BRITS", "SAITS", "TimesNet", "ImputeFormer", "Transformer"]
+VN = ["TP2", "TP3", "H1", "DV press.", "Reservoirs", "Oil temp.", "Motor curr."]
+M = np.array([[next(q["weight"] for q in D["weights"] if q["dataset"] == "MetroPT" and q["model"] == m and q["var"] == k) for k in range(7)] for m in BB])
+axm = fig.add_axes([9.75 / W, 2.55 / H, 3.55 / W, 3.55 / H]); axm.set_xlim(0, 7); axm.set_ylim(6, 0); axm.axis("off")
+for r in range(6):
+    for c in range(7):
+        axm.add_patch(FancyBboxPatch((c + 0.06, r + 0.06), 0.88, 0.88, boxstyle="round,pad=0,rounding_size=0.14", fc=cmap(M[r, c]), ec="none"))
+    axm.text(-0.25, r + 0.5, BB[r], ha="right", va="center", fontsize=9.0, color=INK2)
+for c, nm in enumerate(VN):
+    axm.text(c + 0.5, 6.25, nm, rotation=90, ha="center", va="top", fontsize=8.6, color=INK2)
+cax = fig.add_axes([13.5 / W, 2.55 / H, 0.2 / W, 3.55 / H])
+cax.imshow(np.linspace(0, 1, 256)[:, None], aspect="auto", cmap=cmap, extent=(0, 1, 0, 1), origin="lower"); cax.set_xticks([])
+cax.yaxis.tick_right(); cax.set_yticks([0, 1]); cax.set_yticklabels(["per-seq.", "global"], fontsize=8.6); cax.tick_params(length=0, pad=2)
+for sp in cax.spines.values(): sp.set_visible(False)
 
 # right: result
-head(14.5, "Six imputers, four benchmarks", "below the better one in 91 of 96 settings")
-ax2 = fig.add_axes([16.9 / W, 1.9 / H, 3.9 / W, 4.2 / H])
-labs = [("seq", "Per-seq."), ("global", "Global"), ("dual", "NormBlend")]
-tb = D["teaserB"]
-gms = {"dual": float(np.exp(np.mean(np.log([r["r"] for r in tb])))), "global": float(np.exp(np.mean(np.log([r["g"] for r in tb])))),
-       "seq": float(np.exp(np.mean(np.log([r["s"] for r in tb]))))}
-ax2.axvspan(0.9, 1.0, color=TINTS["dual"], zorder=0, lw=0)
-for i, (k, lab) in enumerate(labs):
-    ax2.plot([1, gms[k]], [i, i], color=COL[k], lw=2.4, zorder=3, solid_capstyle="round")
-    ax2.scatter(gms[k], i, s=80, marker=MK[k], fc=COL[k], ec="white", lw=0.8, zorder=4)
-    ax2.text(max(gms[k], 1) + 0.035, i, f"{gms[k]:.3f}", va="center", ha="left", fontsize=10.5, color=INK, weight="bold" if k == "dual" else "normal")
-ax2.set_yticks(range(3)); ax2.set_yticklabels([l for _, l in labs]); ax2.tick_params(axis="y", length=0)
-ax2.set_xlim(0.9, 1.66); ax2.set_ylim(2.6, -0.6); ax2.axvline(1, color=INK2, lw=0.9, zorder=2)
+head(15.05, "Blending beats selection", "lower error in 91 of 96 settings")
+ax2 = fig.add_axes([17.45 / W, 1.9 / H, 3.1 / W, 4.4 / H])
+labs = [("dual", "NormBlend", "normblend"), ("dual", "Per-var. selection", "sel_var"), ("neutral", "Val. selection", "valsel"),
+        ("global", "Global", "global"), ("seq", "Per-seq.", "seq")]
+for i, (c, lab, k) in enumerate(labs):
+    v = D["ga"][k]; col = COL.get(c, MUTED); mk = MK.get(c, "o")
+    hollow = k == "sel_var"
+    ax2.plot([1, v], [i, i], color=col, lw=2.2, zorder=3, solid_capstyle="round", alpha=0.55 if hollow else 1)
+    ax2.scatter(v, i, s=70, marker=mk, fc="white" if hollow else col, ec=col if hollow else "white", lw=1.2 if hollow else 0.8, zorder=4)
+    ax2.text(max(v, 1) + 0.035, i, f"{v:.3f}", va="center", ha="left", fontsize=10, color=INK, weight="bold" if k == "normblend" else "normal")
+ax2.set_yticks(range(len(labs))); ax2.set_yticklabels([l for _, l, _ in labs], fontsize=9.2); ax2.tick_params(axis="y", length=0)
+ax2.set_xlim(0.9, 1.5); ax2.set_ylim(len(labs) - 0.4, -0.6); ax2.axvline(1, color=INK2, lw=0.9, zorder=2)
 ax2.set_xticks([1.0, 1.2, 1.4]); ax2.xaxis.set_major_formatter(FuncFormatter(fmt)); grid(ax2, "x"); ax2.spines["left"].set_visible(False)
 ax2.set_xlabel("RMSE / better normalization\n(geometric mean, 96 settings)", fontsize=9.5)
+gms = D["ga"]
 print(gms)
 fig.savefig(os.path.join(OUT, "Graphical_abstract.png"), dpi=300, facecolor="white")
 fig.savefig(os.path.join(OUT, "Graphical_abstract.pdf"), facecolor="white")
