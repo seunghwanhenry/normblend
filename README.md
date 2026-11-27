@@ -16,7 +16,8 @@ The result tables of the benchmark are in `step8_outputs/`, `step9_outputs/` and
 few minutes:
 
 ```
-python paper_tables.py          # paper_outputs/summary.json (numbers in the text), paper_outputs/tables.md (Tables 2-5)
+python paper_tables.py          # paper_outputs/summary.json (numbers in the text, bootstrap intervals), paper_outputs/tables.md (Tables 2-5)
+python supp_tables.py           # paper_outputs/supplementary_tables.md (Supplementary Tables S1-S9; run after paper_tables.py)
 python make_figdata.py          # figures/src/figdata2.json
 cd figures/src
 python figT.py; python figM.py; python figK.py; python figP.py; python figW.py; python figS.py; python figC.py; python ga2.py
@@ -77,7 +78,7 @@ not stored in this repository; the scripts recreate them.
 | `dtin_core.py`, `dtin_v2.py`, `dtin_v2_eval.py`, `dtin_improve.py` | Shared utilities and model code; the mask-aware transformer of the paper is `DTINv` in `dtin_v2.py` |
 | `dtin_outputs/config.json`, `dtin_outputs/final_v2/selected_saits.json` | Configuration read by the scripts; the SAITS configuration (two layers, width 256) was fixed before the benchmark |
 | `stepN_outputs/PLAN_stepN.md`, `REPORT_stepN.md` | Plan written before the first run of the step (with the SHA-256 of every script involved) and the generated report |
-| `paper_tables.py`, `make_figdata.py`, `figures/src/` | Numbers, tables and figures of the paper from the result tables |
+| `paper_tables.py`, `supp_tables.py`, `make_figdata.py`, `figures/src/` | Numbers, Tables 2-5, Supplementary Tables S1-S9 and figures of the paper from the result tables |
 
 The scripts keep the names under which they were run; their step numbers come from the project in which they were
 developed. Steps 5 and 7 are included because Steps 8 and 9 import their code; their own analyses are not part of
